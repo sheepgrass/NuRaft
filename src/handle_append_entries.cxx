@@ -330,6 +330,40 @@ ptr<req_msg> raft_server::create_append_entries_req(peer& p) {
         p.reset_cnt_not_applied();
     }
 
+    if (entries_valid) {
+        int32 snapshot_distance = ctx_->get_params()->snapshot_distance_;
+        p_tr( "entries valid, "
+              "last_log_idx: %lu, starting_idx: %lu, cur_nxt_idx: %lu, end_idx: %lu, "
+              "snapshot_distance: %d\n",
+              last_log_idx, starting_idx, cur_nxt_idx, end_idx,
+              snapshot_distance );
+        // Snapshot is enabled and
+        // replica is lag behind by or more than snapshot distance relative to the end
+        if (snapshot_distance > 0 &&
+            last_log_idx + snapshot_distance <= end_idx) {
+            ptr<snapshot> snp_local = get_last_snapshot();
+            ulong last_snapshot_log_idx = snp_local ? snp_local->get_last_log_idx() : 0;
+            p_tr( "snapshot enabled, "
+                  "last_log_idx: %lu, starting_idx: %lu, cur_nxt_idx: %lu, end_idx: %lu, "
+                  "last_snapshot_log_idx=%lu, snapshot_distance: %d\n",
+                  last_log_idx, starting_idx, cur_nxt_idx, end_idx,
+                  last_snapshot_log_idx, snapshot_distance );
+            // Snapshot is valid and
+            // replica is lag behind by or more than snapshot distance relative to the snapshot
+            if (snp_local &&
+                starting_idx < last_snapshot_log_idx &&
+                last_snapshot_log_idx < end_idx &&
+                last_log_idx + snapshot_distance <= last_snapshot_log_idx) {
+                p_db( "send snapshot peer %d, peer log idx: %zu, my starting idx: %zu, "
+                      "my log idx: %zu, last_snapshot_log_idx: %zu, snapshot distance: %d\n",
+                      p.get_id(),
+                      last_log_idx, starting_idx, cur_nxt_idx,
+                      last_snapshot_log_idx, snapshot_distance );
+                return create_sync_snapshot_req(p, last_log_idx, term, commit_idx);
+            }
+        }
+    }
+
     ptr<std::vector<ptr<log_entry>>> log_entries;
     if ((last_log_idx + 1) >= cur_nxt_idx) {
         log_entries = ptr<std::vector<ptr<log_entry>>>();
@@ -636,7 +670,7 @@ ptr<resp_msg> raft_server::handle_append_entries(req_msg& req)
         }
 
         // Dealing with overwrites (logs with different term).
-        while ( log_idx < log_store_->next_slot() &&
+        while ( log_idx != log_store_->next_slot() &&
                 cnt < req.log_entries().size() )
         {
             ptr<log_entry> entry = req.log_entries().at(cnt);

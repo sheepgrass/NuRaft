@@ -580,6 +580,20 @@ public:
      */
     void set_inc_term_func(srv_state::inc_term_func func);
 
+    /**
+     * Get the last snapshot.
+     *
+     * @return Last snapshot.
+     */
+    ptr<snapshot> get_last_snapshot() const;
+
+    /**
+     * Set the last snapshot.
+     *
+     * @param new_snapshot New snapshot to be set as the last snapshot.
+     */
+    void set_last_snapshot(const ptr<snapshot>& new_snapshot);
+
 protected:
     typedef std::unordered_map<int32, ptr<peer>>::const_iterator peer_itor;
 
@@ -725,8 +739,6 @@ protected:
     ptr< cmd_result< ptr<buffer> > > send_msg_to_leader(ptr<req_msg>& req);
 
     void set_config(const ptr<cluster_config>& new_config);
-    ptr<snapshot> get_last_snapshot() const;
-    void set_last_snapshot(const ptr<snapshot>& new_snapshot);
 
     ulong store_log_entry(ptr<log_entry>& entry, ulong index = 0);
 

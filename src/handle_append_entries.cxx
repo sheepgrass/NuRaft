@@ -887,7 +887,7 @@ void raft_server::handle_append_entries_resp(resp_msg& resp) {
     } else {
         ulong prev_next_log = p->get_next_log_idx();
         std::lock_guard<std::mutex> guard(p->get_lock());
-        if (resp.get_next_idx() > 0 && p->get_next_log_idx() > resp.get_next_idx()) {
+        if (resp.get_next_idx() > 0 && (p->get_next_log_idx() > resp.get_next_idx() || (resp.get_term() > 0 && term_for_log(resp.get_next_idx() - 1) == resp.get_term()))) {
             // fast move for the peer to catch up
             p->set_next_log_idx(resp.get_next_idx());
         } else {

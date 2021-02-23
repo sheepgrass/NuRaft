@@ -154,10 +154,10 @@ if (CODE_COVERAGE GREATER 0)
     APPEND_COVERAGE_COMPILER_FLAGS()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-inline")
     set(COVERAGE_EXCLUDES
-        'asio/*'
-        'examples/*'
-        'tests/*'
-        'usr/*'
+        '*asio/*'
+        '*examples/*'
+        '*tests/*'
+        '*usr/*'
     )
 endif()
 
@@ -190,7 +190,7 @@ set(ROOT_SRC ${PROJECT_SOURCE_DIR}/src)
 set(EXAMPLES_SRC ${PROJECT_SOURCE_DIR}/examples)
 
 # === Copy script files ===
-file(COPY ${CMAKE_SOURCE_DIR}/scripts/test/runtests.sh
+file(COPY ${PROJECT_SOURCE_DIR}/scripts/test/runtests.sh
      DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
 # === Generate dummy self-signed cert and key for testing ===

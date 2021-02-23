@@ -221,6 +221,7 @@ public:
         , callback_(callback)
         , src_id_(-1)
         , is_leader_(false)
+        , cached_port_(0)
     {
         p_tr("asio rpc session created: %p", this);
     }
@@ -238,10 +239,12 @@ public:
         // this is safe since we only expose ctor to cs_new
         ptr<rpc_session> self = this->shared_from_this();
 
+        cached_address_ = socket_.remote_endpoint().address().to_string();
+        cached_port_ = socket_.remote_endpoint().port();
         p_in( "session %zu got connection from %s:%u (as a server)",
               session_id_,
-              socket_.remote_endpoint().address().to_string().c_str(),
-              socket_.remote_endpoint().port() );
+              cached_address_.c_str(),
+              cached_port_ );
 
         if (ssl_enabled_) {
 #ifdef SSL_LIBRARY_NOT_FOUND
@@ -264,15 +267,15 @@ public:
         if (!err) {
             p_in( "session %zu handshake with %s:%u succeeded (as a server)",
                   session_id_,
-                  socket_.remote_endpoint().address().to_string().c_str(),
-                  socket_.remote_endpoint().port() );
+                  cached_address_.c_str(),
+                  cached_port_ );
             this->start(self);
 
         } else {
             p_er( "session %zu handshake with %s:%u failed: error %d",
                   session_id_,
-                  socket_.remote_endpoint().address().to_string().c_str(),
-                  socket_.remote_endpoint().port(),
+                  cached_address_.c_str(),
+                  cached_port_,
                   err.value() );
 
             // Lazy stop.
@@ -306,8 +309,8 @@ public:
                 p_er( "session %zu failed to read rpc header from socket %s:%u "
                       "due to error %d",
                       session_id_,
-                      socket_.remote_endpoint().address().to_string().c_str(),
-                      socket_.remote_endpoint().port(),
+                      cached_address_.c_str(),
+                      cached_port_,
                       err.value() );
                 this->stop();
                 return;
@@ -396,8 +399,8 @@ private:
 
         cb_func::ConnectionArgs
             args( session_id_,
-                  socket_.remote_endpoint().address().to_string(),
-                  socket_.remote_endpoint().port(),
+                  cached_address_,
+                  cached_port_,
                   src_id_,
                   is_leader_ );
         cb_func::Param cb_param( handler_->get_id(),
@@ -475,8 +478,8 @@ private:
                 is_leader_ = true;
                 cb_func::ConnectionArgs
                     args( session_id_,
-                          socket_.remote_endpoint().address().to_string(),
-                          socket_.remote_endpoint().port(),
+                          cached_address_,
+                          cached_port_,
                           src_id_,
                           is_leader_ );
                 cb_func::Param cb_param( handler_->get_id(),
@@ -672,6 +675,9 @@ private:
      * `true` if the endpoint server was leader when it was last seen.
      */
     bool is_leader_;
+
+    std::string cached_address_;
+    uint32_t cached_port_;
 };
 
 // rpc listener implementation
@@ -919,8 +925,8 @@ public:
 
         ptr<asio_rpc_client> self = this->shared_from_this();
         while (!socket().is_open()) { // Dummy one-time loop
-            p_db( "socket to %s:%s is not opened yet",
-                  host_.c_str(), port_.c_str() );
+            p_db( "socket %p to %s:%s is not opened yet",
+                  this, host_.c_str(), port_.c_str() );
 
             // WARNING:
             //   Only one thread can establish connection at a time.
@@ -1103,15 +1109,15 @@ private:
         if (to == true) {
             bool exp = false;
             if (!socket_busy_.compare_exchange_strong(exp, true)) {
-                p_ft("socket is already in use, race happened on connection to %s:%s",
-                     host_.c_str(), port_.c_str());
+                p_ft("socket %p is already in use, race happened on connection to %s:%s",
+                     this, host_.c_str(), port_.c_str());
                 assert(0);
             }
         } else {
             bool exp = true;
             if (!socket_busy_.compare_exchange_strong(exp, false)) {
-                p_ft("socket is already idle, race happened on connection to %s:%s",
-                     host_.c_str(), port_.c_str());
+                p_ft("socket %p is already idle, race happened on connection to %s:%s",
+                     this, host_.c_str(), port_.c_str());
                 assert(0);
             }
         }
@@ -1141,8 +1147,8 @@ private:
                    asio::ip::tcp::resolver::iterator itor)
     {
         if (!err) {
-            p_in( "connected to %s:%s (as a client)",
-                  host_.c_str(), port_.c_str() );
+            p_in( "%p connected to %s:%s (as a client)",
+                  this, host_.c_str(), port_.c_str() );
             if (ssl_enabled_) {
 #ifdef SSL_LIBRARY_NOT_FOUND
                 assert(0); // Should not reach here.
